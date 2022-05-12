@@ -38,8 +38,17 @@ const getLastId = `
 const findAuthorById = `
     SELECT id FROM author WHERE name = $1
 `
+
+/**
+ * ILIKE is a case insensitive LIKE format provided by Postgre
+ * % = group of whatever characters
+ * _ = one character wathever
+ * El módulo pg de node requiere que concatenemos los comodines
+ * en el valor de los parámetros cuando contruimos la consulta
+ * en JavaScript
+ */
 const findAuthorsThatContais = `
-    SELECT id, name FROM authors WHERE name LIKE $1
+    SELECT id, name FROM authors WHERE name ILIKE $1
 `
 
 /**
@@ -77,8 +86,20 @@ app.use(express.json());
 /**
  * Get authors containing string
  */
-app.get("/findautor/:str", (req, res)=>{
-    db.query()
+app.get("/findautor/:str", async (req, res)=>{
+    try {
+        const data = await db.query(
+            findAuthorsThatContais, [`%${req.params.str}%`]
+        )
+        if (data.rowCount === 0) {
+            res.sendStatus(404)
+        } else {
+            res.json(data.rows)
+        }
+    } catch (error) {
+        console.error(error);
+        res.sendStatus(500)
+    }
 });
 
 /**
@@ -107,3 +128,60 @@ app.post("/quoteauthor/",(req, res)=>{
 })
 
 app.listen(process.env.PORT);
+
+/**
+ * 
+ *      EJEMPLOS MANEJO node pg QUERIES
+ *      Si no proporcionamos el tercer argumento
+ *      con un callback, el método query nos
+ *      entrega una promesa.
+ * 
+ */
+
+/**
+ * Usando callbacks
+ */
+app.post("/newAuthorCallback/", (req, res)=>{
+    db.query(
+        "INSERT INTO authors(name) VALUES ($1) RETURNING *",
+        [req.body.name],
+        (err, data)=>{
+            if (err) {
+                res.sendStatus(500)
+                console.error(err);
+            }
+            else res.json(data.rows[0])
+        }
+    )
+})
+
+/**
+ * Usando then/catch
+ */
+app.post("/newAuthorThenCatch/", (req, res)=>{
+    db.query(
+        "INSERT INTO authors(name) VALUES ($1) RETURNING *",
+        [req.body.name]
+    )
+    .then( data => res.json(data.rows[0]))
+    .catch( err => {
+        res.sendStatus(500)
+        console.error(err);
+    })
+})
+
+/**
+ * Usando async/await
+ */
+app.post("/newAuthorAsyncAwait/", async (req, res)=>{
+    try {
+        const data = await db.query(
+            "INSERT INTO authors(name) VALUES ($1) RETURNING *",
+            [req.body.name]
+        )
+        res.json(data.rows[0]);
+    } catch (error) {
+        res.sendStatus(500)
+        console.error(error);
+    }
+})
