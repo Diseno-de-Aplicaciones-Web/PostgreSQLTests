@@ -43,7 +43,16 @@ const addQuote = `
 const findAuthorsThatContais = `
     SELECT id, name FROM authors WHERE name ILIKE $1
 `
-
+const searchInAuthorQuotes = `
+    SELECT quotes.quote
+    FROM authors, quotes
+    WHERE
+        authors.id=$1
+    AND
+        authors.id=quotes.author_id
+    AND
+        quotes.quote LIKE $2
+`
 /**
  * Default handler
  */
@@ -79,11 +88,11 @@ app.use(express.json());
 /**
  * Get authors containing string
  */
-app.get("/findautor/:str", async (req, res)=>{
+app.get("/findautor/:searchString", async (req, res)=>{
     try {
         const data = await db.query(
             // Añadimos comodines SQL % para buscar 
-            findAuthorsThatContais, [`%${req.params.str}%`]
+            findAuthorsThatContais, [`%${req.params.searchString}%`]
         )
         if (data.rowCount === 0) {
             res.sendStatus(404)
@@ -123,6 +132,22 @@ app.post("/quoteauthor/", async (req, res)=>{
         });
     } catch (err) {
         console.error(err);
+        res.sendStatus(500);
+    }
+})
+
+app.get("/search-in-author-quotes/:authorId/:searchString", async (req, res)=>{
+    try {
+        const { rows } = await db.query(
+            searchInAuthorQuotes,
+            [
+                req.params.authorId,
+                `%${req.params.searchString}%`
+            ]
+        )
+        res.json(rows)
+    } catch (error) {
+        console.error(error);
         res.sendStatus(500);
     }
 })
