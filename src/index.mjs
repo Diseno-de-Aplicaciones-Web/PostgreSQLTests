@@ -27,18 +27,11 @@ const createAuthorsTableSQL = `
     )
 `
 const addAuthor = `
-    INSERT INTO authors(name) VALUES ($1)
+    INSERT INTO authors(name) VALUES ($1) RETURNING *
 `
 const addQuote = `
-    INSERT INTO quotes(quote, author_id) VALUES ($1, $2)
+    INSERT INTO quotes(quote, author_id) VALUES ($1, $2) RETURNING *
 `
-const getLastId = `
-    SELECT lastval()
-`
-const findAuthorById = `
-    SELECT id FROM author WHERE name = $1
-`
-
 /**
  * ILIKE is a case insensitive LIKE format provided by Postgre
  * % = group of whatever characters
@@ -89,6 +82,7 @@ app.use(express.json());
 app.get("/findautor/:str", async (req, res)=>{
     try {
         const data = await db.query(
+            // Añadimos comodines SQL % para buscar 
             findAuthorsThatContais, [`%${req.params.str}%`]
         )
         if (data.rowCount === 0) {
@@ -108,19 +102,25 @@ app.get("/findautor/:str", async (req, res)=>{
  *  quote string
  *  author string
  */
-app.post("/quoteauthor/",(req, res)=>{
+app.post("/quoteauthor/", async (req, res)=>{
     try {
-        db.query(addAuthor, [req.body.author], defaultHandler); // Create new author
-        db.query(getLastId,(err, data)=>{ // Request new author id.
-            if (err) throw err
-            const author_id = parseInt(data.rows[0].lastval); // lastval() provides a string
-            db.query(
-                addQuote,
-                [req.body.quote, author_id],
-                defaultHandler
-            ); // Create new quote for the new author
-        })
-        res.sendStatus(201);
+        // Create new author
+        const newAuthorResponse = await db.query(
+            addAuthor,
+            [req.body.author]
+        );
+        // Create new quote for the new author
+        const newQuoteResponse = await db.query(
+            addQuote,
+            [
+                req.body.quote,
+                newAuthorResponse.rows[0].id
+            ]
+        );
+        res.json({
+            author: newAuthorResponse.rows[0],
+            quote: newQuoteResponse.rows[0]
+        });
     } catch (err) {
         console.error(err);
         res.sendStatus(500);
@@ -143,8 +143,7 @@ app.listen(process.env.PORT);
  */
 app.post("/newAuthorCallback/", (req, res)=>{
     db.query(
-        "INSERT INTO authors(name) VALUES ($1) RETURNING *",
-        [req.body.name],
+        addAuthor, [req.body.name],
         (err, data)=>{
             if (err) {
                 res.sendStatus(500)
@@ -159,10 +158,7 @@ app.post("/newAuthorCallback/", (req, res)=>{
  * Usando then/catch
  */
 app.post("/newAuthorThenCatch/", (req, res)=>{
-    db.query(
-        "INSERT INTO authors(name) VALUES ($1) RETURNING *",
-        [req.body.name]
-    )
+    db.query(addAuthor, [req.body.name])
     .then( data => res.json(data.rows[0]))
     .catch( err => {
         res.sendStatus(500)
@@ -175,10 +171,7 @@ app.post("/newAuthorThenCatch/", (req, res)=>{
  */
 app.post("/newAuthorAsyncAwait/", async (req, res)=>{
     try {
-        const data = await db.query(
-            "INSERT INTO authors(name) VALUES ($1) RETURNING *",
-            [req.body.name]
-        )
+        const data = await db.query(addAuthor, [req.body.name])
         res.json(data.rows[0]);
     } catch (error) {
         res.sendStatus(500)
