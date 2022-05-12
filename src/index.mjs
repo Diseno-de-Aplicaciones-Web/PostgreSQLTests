@@ -53,13 +53,6 @@ const searchInAuthorQuotes = `
     AND
         quotes.quote LIKE $2
 `
-/**
- * Default handler
- */
-function defaultHandler (error, data) {
-    if (error) throw error;
-    console.log(error, data);
-}
 
 /**
  * Initialize DB
@@ -70,8 +63,13 @@ db.connect()
 /**
  * Table creation
  */
-db.query(createAuthorsTableSQL, defaultHandler);
-db.query(createQuotesTableSQL, defaultHandler);
+ try {
+    db.query(createAuthorsTableSQL);
+    db.query(createQuotesTableSQL);
+} catch (error) {
+    console.error("Error trying to create tables")
+    throw error
+}
 
 /**
  * Initialize Express
@@ -152,7 +150,7 @@ app.get("/search-in-author-quotes/:authorId/:searchString", async (req, res)=>{
     }
 })
 
-app.listen(process.env.PORT);
+app.listen(process.env.PORT, ()=>console.log("Listening..."));
 
 /**
  * 
